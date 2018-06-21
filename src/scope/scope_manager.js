@@ -1,51 +1,113 @@
 'use strict'
 
+const fs = require('fs')
 const asyncHooks = require('async_hooks')
 const Scope = require('./scope')
 
+// TODO: use currentId() if executionAsyncId() is not available
+
 class ScopeManager {
   constructor () {
-    this._id = -1
-    this._set = []
-    this._context = new Map()
-    this.active = null
+    const id = asyncHooks.executionAsyncId()
+    const context = {
+      id,
+      count: 0,
+      parent: null,
+      active: null,
+      set: []
+    }
 
-    this._setup()
+    this._context = new Map([[ id, context ]])
+
+    this._init()
+  }
+
+  active () {
+    const id = asyncHooks.executionAsyncId()
+
+    let context = this._context.get(id)
+
+    while (context !== null) {
+      if (context.active) {
+        return context.active
+      }
+
+      context = context.parent
+    }
+
+    return null
   }
 
   activate (span, finishOnClose) {
-    this._set.push(this.active)
+    const id = asyncHooks.executionAsyncId()
+    const context = this._context.get(id)
+    const scope = new Scope(span, this, id, finishOnClose)
 
-    this.active = new Scope(span, this)
+    context.set.push(scope)
+    context.active = scope
 
-    return this.active
+    return scope
   }
 
   _deactivate (scope) {
-    if (this.active === scope) {
-      // assert.ok(this._set.length, "can't remove top context");
-      this.active = this._set.pop()
-      return
+    if (scope._finishOnClose) {
+      scope.span.finish()
     }
 
-    const index = this.stack.lastIndexOf(scope)
+    const context = this._context.get(scope._id)
 
-    this.stack.splice(index, 1)
+    if (!context) return
+
+    const index = context.set.lastIndexOf(scope)
+
+    context.set.splice(index, 1)
+    context.active = context.set[context.set.length - 1]
   }
 
   _init () {
     this._hook = asyncHooks.createHook({
-      init (asyncId, type, triggerAsyncId, resource) {
-        this._id = asyncId
-        this._context.set(asyncId, [])
+      init: (asyncId, type, triggerAsyncId, resource) => {
+        const parent = this._context.get(triggerAsyncId)
+
+        this._context.set(asyncId, {
+          id: asyncId,
+          count: 0,
+          parent,
+          active: null,
+          set: []
+        })
+
+        this._retain(parent)
       },
 
-      destroy (asyncId) {
-        this._context.delete(asyncId)
+      destroy: (asyncId) => {
+        const context = this._context.get(asyncId)
+
+        this._remove(context)
       }
     })
 
     this._hook.enable()
+  }
+
+  _retain (context) {
+    context && context.count++
+  }
+
+  _release (context) {
+    context && context.count--
+  }
+
+  _remove (context) {
+    if (context && context.count === 0) {
+      for (let i = context.set.length - 1; i >= 0; i--) {
+        context.set[i].close()
+      }
+
+      this._release(context.parent)
+      this._remove(context.parent)
+      this._context.delete(context.id)
+    }
   }
 
   _destroy () {
@@ -54,19 +116,3 @@ class ScopeManager {
 }
 
 module.exports = ScopeManager
-
-async_hooks.createHook({
-  init (asyncId, type, triggerAsyncId, resource) {
-
-  },
-  before (asyncId) {
-
-  },
-  after (asyncId) {
-
-  },
-  destroy (asyncId) {
-    currentUid = async_hooks.executionAsyncId()
-
-    namespace._contexts.delete(asyncId)
-  }
