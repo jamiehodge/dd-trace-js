@@ -9,6 +9,10 @@ class Scope {
   }
 
   close () {
+    if (this._finishOnClose) {
+      this.span.finish()
+    }
+
     this._manager._deactivate(this)
   }
 }

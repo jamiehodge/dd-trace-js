@@ -76,9 +76,25 @@ describe('ScopeManager', () => {
     })
 
     setTimeout(() => {
+      expect(scope1.close).to.have.been.called
+      expect(scope2.close).to.have.been.called
+
+      done()
+    })
+  })
+
+  it('should wait the end of the asynchronous context before closing pending scopes', done => {
+    const span = {}
+
+    let scope
+
+    setTimeout(() => {
+      scope = scopeManager.activate(span)
+
+      sinon.spy(scope, 'close')
+
       setTimeout(() => {
-        expect(scope1.close).to.have.been.called
-        expect(scope2.close).to.have.been.called
+        expect(scope.close).to.not.have.been.called
 
         done()
       })
@@ -96,23 +112,23 @@ describe('ScopeManager', () => {
     })
   })
 
-  it('should propagate parent context to ancestors', done => {
-    const span1 = {}
-    const span2 = {}
-    const scope1 = scopeManager.activate(span1)
+  // it('should propagate parent context to ancestors', done => {
+  //   const span1 = {}
+  //   const span2 = {}
+  //   const scope1 = scopeManager.activate(span1)
 
-    setTimeout(() => {
-      const scope2 = scopeManager.activate(span2)
+  //   setTimeout(() => {
+  //     const scope2 = scopeManager.activate(span2)
 
-      setTimeout(() => {
-        expect(scopeManager.active()).to.equal(scope1)
+  //     setTimeout(() => {
+  //       expect(scopeManager.active()).to.equal(scope1)
 
-        done()
-      })
+  //       done()
+  //     })
 
-      scope2.close()
-    })
-  })
+  //     scope2.close()
+  //   })
+  // })
 
   // it('should support asynchronous scopes using timers', () => {
   //   const span1 = {}

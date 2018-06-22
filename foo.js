@@ -1,12 +1,21 @@
 'use strict'
 
-const asyncHooks = require('./async_hooks')
+const fs = require('fs')
+const asyncHooks = require('async_hooks')
 const Scope = require('./scope')
+
+// TODO: use currentId() if executionAsyncId() is not available
 
 class ScopeManager {
   constructor () {
     const id = asyncHooks.executionAsyncId()
-    const context = this._createContext(id)
+    const context = {
+      id,
+      count: 0,
+      parent: null,
+      active: null,
+      set: []
+    }
 
     this._context = new Map([[ id, context ]])
 
@@ -41,6 +50,10 @@ class ScopeManager {
   }
 
   _deactivate (scope) {
+    if (scope._finishOnClose) {
+      scope.span.finish()
+    }
+
     const context = this._context.get(scope._id)
 
     if (!context) return
@@ -52,50 +65,29 @@ class ScopeManager {
   }
 
   _init () {
-    const fs = require('fs')
-
     this._hook = asyncHooks.createHook({
       init: (asyncId, type, triggerAsyncId, resource) => {
-        fs.writeSync(1, `init: ${asyncId}, trigger: ${triggerAsyncId}\n`)
-
         const parent = this._context.get(triggerAsyncId)
-        const context = this._createContext(asyncId, parent)
 
-        this._context.set(asyncId, context)
+        this._context.set(asyncId, {
+          id: asyncId,
+          count: 0,
+          parent,
+          active: null,
+          set: []
+        })
 
         this._retain(parent)
       },
 
-      before: (asyncId) => {
-        fs.writeSync(1, `before: ${asyncId}\n`)
-      },
-
-      after: (asyncId) => {
-        fs.writeSync(1, `after: ${asyncId}\n`)
-
-        const context = this._context.get(asyncId)
-
-        this._remove(context) // remove early when possible
-      },
-
       destroy: (asyncId) => {
-        fs.writeSync(1, `destroy: ${asyncId}\n`)
-
         const context = this._context.get(asyncId)
 
-        this._remove(context) // remove on garbage collection
+        this._remove(context)
       }
     })
-  }
 
-  _createContext (id, parent) {
-    return {
-      id,
-      count: 0,
-      parent: parent || null,
-      active: null,
-      set: []
-    }
+    this._hook.enable()
   }
 
   _retain (context) {
@@ -107,9 +99,7 @@ class ScopeManager {
   }
 
   _remove (context) {
-    if (context && context.parent && context.count === 0) {
-      context.count = -1
-
+    if (context && context.count === 0) {
       for (let i = context.set.length - 1; i >= 0; i--) {
         context.set[i].close()
       }
