@@ -2,21 +2,30 @@
 
 const asyncHooks = require('./async_hooks')
 const Scope = require('./scope')
+const Context = require('./context')
 
 class ScopeManager {
   constructor () {
-    const id = asyncHooks.executionAsyncId()
-    const context = this._createContext(id)
+    const id = -1
+    const context = new Context(id)
 
+    this._active = context
+    this._set = []
     this._context = new Map([[ id, context ]])
 
-    this._init()
+    this._hook = asyncHooks.createHook({
+      init: this._init.bind(this),
+      before: this._before.bind(this),
+      after: this._after.bind(this),
+      destroy: this._destroy.bind(this),
+      promiseResolve: this._promiseResolve.bind(this)
+    })
+
+    this._enable()
   }
 
   active () {
-    const id = asyncHooks.executionAsyncId()
-
-    let context = this._context.get(id)
+    let context = this._active
 
     while (context !== null) {
       if (context.active) {
@@ -29,10 +38,9 @@ class ScopeManager {
     return null
   }
 
-  activate (span, finishOnClose) {
-    const id = asyncHooks.executionAsyncId()
-    const context = this._context.get(id)
-    const scope = new Scope(span, this, id, finishOnClose)
+  activate (span, finishSpanOnClose) {
+    const context = this._active
+    const scope = new Scope(span, context, finishSpanOnClose)
 
     context.set.push(scope)
     context.active = scope
@@ -40,62 +48,38 @@ class ScopeManager {
     return scope
   }
 
-  _deactivate (scope) {
-    const context = this._context.get(scope._id)
+  _init (asyncId, type) {
+    const parent = this._active
+    const context = new Context(asyncId, parent)
 
-    if (!context) return
+    this._context.set(asyncId, context)
 
-    const index = context.set.lastIndexOf(scope)
-
-    context.set.splice(index, 1)
-    context.active = context.set[context.set.length - 1]
+    this._retain(parent)
   }
 
-  _init () {
-    const fs = require('fs')
+  _before (asyncId) {
+    const context = this._context.get(asyncId)
 
-    this._hook = asyncHooks.createHook({
-      init: (asyncId, type, triggerAsyncId, resource) => {
-        fs.writeSync(1, `init: ${asyncId}, trigger: ${triggerAsyncId}\n`)
-
-        const parent = this._context.get(triggerAsyncId)
-        const context = this._createContext(asyncId, parent)
-
-        this._context.set(asyncId, context)
-
-        this._retain(parent)
-      },
-
-      before: (asyncId) => {
-        fs.writeSync(1, `before: ${asyncId}\n`)
-      },
-
-      after: (asyncId) => {
-        fs.writeSync(1, `after: ${asyncId}\n`)
-
-        const context = this._context.get(asyncId)
-
-        this._remove(context) // remove early when possible
-      },
-
-      destroy: (asyncId) => {
-        fs.writeSync(1, `destroy: ${asyncId}\n`)
-
-        const context = this._context.get(asyncId)
-
-        this._remove(context) // remove on garbage collection
-      }
-    })
+    this._enter(context)
   }
 
-  _createContext (id, parent) {
-    return {
-      id,
-      count: 0,
-      parent: parent || null,
-      active: null,
-      set: []
-    }
+  _after (asyncId) {
+    const context = this._context.get(asyncId)
+
+    this._exit(context)
+    this._remove(context) // remove early when possible
+  }
+
+  _destroy (asyncId) {
+    const context = this._context.get(asyncId)
+
+    this._remove(context) // remove on garbage collection
+  }
+
+  _promiseResolve (asyncId) {
+    const context = this._context.get(asyncId)
+
+    this._remove(context) // remove on promise resolve
   }
 
   _retain (context) {
@@ -104,6 +88,25 @@ class ScopeManager {
 
   _release (context) {
     context && context.count--
+  }
+
+  _enter (context) {
+    this._set.push(this._active)
+    this._active = context
+  }
+
+  _exit (context) {
+    if (this.active === context) {
+      if (this._set.length) {
+        this.active = this._set.pop()
+      }
+    } else {
+      const index = this._set.lastIndexOf(context)
+
+      if (index !== -1) {
+        this._set.splice(index, 1)
+      }
+    }
   }
 
   _remove (context) {
@@ -120,7 +123,11 @@ class ScopeManager {
     }
   }
 
-  _destroy () {
+  _enable () {
+    this._hook.enable()
+  }
+
+  _disable () {
     this._hook.disable()
   }
 }

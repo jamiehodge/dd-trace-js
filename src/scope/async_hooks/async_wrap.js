@@ -1,39 +1,37 @@
 'use strict'
 
-const asyncHook = require('async-hook-jl')
+let asyncHook
 
-const parents = {}
-
-let currentUid = -1
+try {
+  // load async-hook if the user is using it
+  asyncHook = require('async-hook')
+} catch (e) {
+  // otherwise load the more recent async-hook-jl
+  asyncHook = require('async-hook-jl')
+}
 
 module.exports = {
   createHook: (callbacks) => {
     const hooks = {
       init: (uid, handle, provider, parentUid, parentHandle) => {
-        parents[uid] = parentUid
-        callbacks.init(uid, provider, parentUid, parentHandle)
+        callbacks.init(uid)
       },
       pre: (uid, handle) => {
-        currentUid = uid
         callbacks.before(uid)
       },
       post: (uid, handle, didThrow) => {
         callbacks.after(uid)
-        currentUid = parents[uid] || -1
       },
       destroy: (uid) => {
         callbacks.destroy(uid)
-        delete parents[uid]
       }
     }
 
-    asyncHook.addHooks(hooks)
     asyncHook.enable()
 
     return {
+      enable: () => asyncHook.addHooks(hooks),
       disable: () => asyncHook.removeHooks(hooks)
     }
-  },
-
-  executionAsyncId: () => currentUid
+  }
 }

@@ -1,6 +1,5 @@
 'use strict'
 
-// const Span = require('../../src/span')
 const Scope = require('../../src/scope/scope')
 
 describe('ScopeManager', () => {
@@ -13,7 +12,7 @@ describe('ScopeManager', () => {
   })
 
   afterEach(() => {
-    scopeManager._destroy()
+    scopeManager._disable()
   })
 
   it('should support activating a span', () => {
@@ -22,7 +21,7 @@ describe('ScopeManager', () => {
     scopeManager.activate(span)
 
     expect(scopeManager.active()).to.be.instanceof(Scope)
-    expect(scopeManager.active().span).to.equal(span)
+    expect(scopeManager.active().span()).to.equal(span)
   })
 
   it('should support closing a scope', () => {
@@ -78,7 +77,6 @@ describe('ScopeManager', () => {
     setTimeout(() => {
       expect(scope1.close).to.have.been.called
       expect(scope2.close).to.have.been.called
-
       done()
     })
   })
@@ -95,7 +93,6 @@ describe('ScopeManager', () => {
 
       setTimeout(() => {
         expect(scope.close).to.not.have.been.called
-
         done()
       })
     })
@@ -107,55 +104,40 @@ describe('ScopeManager', () => {
 
     setTimeout(() => {
       expect(scopeManager.active()).to.equal(scope)
-
       done()
     })
   })
 
-  // it('should propagate parent context to ancestors', done => {
-  //   const span1 = {}
-  //   const span2 = {}
-  //   const scope1 = scopeManager.activate(span1)
+  it('should propagate parent context to ancestors', done => {
+    const span1 = {}
+    const span2 = {}
+    const scope1 = scopeManager.activate(span1)
 
-  //   setTimeout(() => {
-  //     const scope2 = scopeManager.activate(span2)
+    setTimeout(() => {
+      const scope2 = scopeManager.activate(span2)
 
-  //     setTimeout(() => {
-  //       expect(scopeManager.active()).to.equal(scope1)
+      setTimeout(() => {
+        expect(scopeManager.active()).to.equal(scope1)
+        done()
+      })
 
-  //       done()
-  //     })
+      scope2.close()
+    })
+  })
 
-  //     scope2.close()
-  //   })
-  // })
+  it('should isolate asynchronous contexts', done => {
+    const span1 = {}
+    const span2 = {}
 
-  // it('should support asynchronous scopes using timers', () => {
-  //   const span1 = {}
-  //   const span2 = {}
-  //   const span3 = {}
+    const scope1 = scopeManager.activate(span1)
 
-  //   const scope1 = scopeManager.activate()
+    setTimeout(() => {
+      scopeManager.activate(span2)
+    })
 
-  //   setImmediate(() => {
-  //     const scope2 = scopeManager.activate(span1)
-
-  //     setImmediate(() => {
-  //       const scope3 = scopeManager.activate(span1)
-  //     })
-  //   })
-
-  //   expect()
-  //   const scope2 = scopeManager.activate(span2)
-
-  //   expect(scopeManager.active()).to.equal(scope2)
-
-  //   scope2.close()
-
-  //   expect(scopeManager.active()).to.equal(scope1)
-
-  //   scope1.close()
-
-  //   expect(scopeManager.active()).to.be.null
-  // })
+    setTimeout(() => {
+      expect(scopeManager.active()).to.equal(scope1)
+      done()
+    })
+  })
 })
