@@ -30,7 +30,13 @@ class Context {
 
   remove () {
     if (this.parent) {
-      // test
+      if (this.set.length === 0) {
+        this.destroy()
+      } else if (this.count === 0) {
+        for (let i = this.set.length - 1; i >= 0; i--) {
+          this.set[i].close()
+        }
+      }
     }
   }
 
@@ -46,8 +52,9 @@ class Context {
 
       this.parent.children.delete(this.id)
       this.parent.release()
-      // this.parent = null
-      // this.count = 0
+      this.parent.remove()
+      this.parent = null
+      this.count = -1
     }
   }
 }
