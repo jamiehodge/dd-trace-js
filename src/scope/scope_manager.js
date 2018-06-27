@@ -1,5 +1,6 @@
 'use strict'
 
+const fs = require('fs')
 const asyncHooks = require('./async_hooks')
 const Scope = require('./scope')
 const Context = require('./context')
@@ -49,12 +50,15 @@ class ScopeManager {
   }
 
   _init (asyncId, type) {
+    fs.writeSync(1, `async init: ${asyncId} ${type}\n`)
+
     const parent = this._active
     const context = new Context(asyncId, parent)
 
     this._context.set(asyncId, context)
 
-    this._retain(parent)
+    fs.writeSync(1, `_init: ${parent}\n`)
+    // this._retain(parent)
   }
 
   _before (asyncId) {
@@ -83,42 +87,33 @@ class ScopeManager {
   }
 
   _retain (context) {
-    context && context.count++
+    context && context.retain()
   }
 
   _release (context) {
-    context && context.count--
+    context && context.release()
   }
 
   _enter (context) {
-    this._set.push(this._active)
-    this._active = context
+    if (context) {
+      this._set.push(this._active)
+      this._active = context
+    }
   }
 
   _exit (context) {
-    if (this.active === context) {
+    if (this._active === context) {
       if (this._set.length) {
-        this.active = this._set.pop()
+        this._active = this._set.pop()
       }
-    } else {
-      const index = this._set.lastIndexOf(context)
 
-      if (index !== -1) {
-        this._set.splice(index, 1)
-      }
+      context.exited = true
     }
   }
 
   _remove (context) {
-    if (context && context.parent && context.count === 0) {
-      context.count = -1
-
-      for (let i = context.set.length - 1; i >= 0; i--) {
-        context.set[i].close()
-      }
-
-      this._release(context.parent)
-      this._remove(context.parent)
+    if (context) {
+      context.remove()
       this._context.delete(context.id)
     }
   }

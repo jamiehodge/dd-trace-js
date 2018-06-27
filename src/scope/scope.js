@@ -4,7 +4,7 @@ class Scope {
   constructor (span, context, finishSpanOnClose) {
     this._span = span
     this._context = context
-    this._finishSpanOnClose = finishSpanOnClose
+    this._finishSpanOnClose = !!finishSpanOnClose
   }
 
   span () {
@@ -20,6 +20,10 @@ class Scope {
 
     this._context.set.splice(index, 1)
     this._context.active = this._context.set[this._context.set.length - 1]
+
+    if (this._context.exited && !this._context.active) {
+      this._context.destroy()
+    }
   }
 }
 
