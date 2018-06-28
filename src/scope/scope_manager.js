@@ -1,6 +1,5 @@
 'use strict'
 
-const fs = require('fs')
 const asyncHooks = require('./async_hooks')
 const Scope = require('./scope')
 const Context = require('./context')
@@ -49,16 +48,13 @@ class ScopeManager {
     return scope
   }
 
-  _init (asyncId, type) {
-    fs.writeSync(1, `async init: ${asyncId} ${type}\n`)
-
+  _init (asyncId) {
     const parent = this._active
     const context = new Context(asyncId, parent)
 
-    this._context.set(asyncId, context)
+    context.link()
 
-    fs.writeSync(1, `_init: ${parent}\n`)
-    // this._retain(parent)
+    this._context.set(asyncId, context)
   }
 
   _before (asyncId) {

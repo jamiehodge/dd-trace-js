@@ -81,56 +81,56 @@ describe('ScopeManager', () => {
     })
   })
 
-  it('should remove the asynchronous context early when no scope was set as finish on close', () => {
-
-  })
+  // it('should wait for garbage collection before removing the context', done => {
+  //   const timer = setInterval(() => {
+  //     if (count === 2)
+  //   }, 1)
+  // })
 
   it('should prevent memory leaks in recursive timers', done => {
-    const fs = require('fs')
+    const outerContext = scopeManager._active
+    const outerChildCount = outerContext.children.size
 
+    let innerContext
     let scope1
     let scope2
     let scope3
 
-    fs.writeSync(1, `before\n`)
-
     function assert () {
-      fs.writeSync(1, `assert\n`)
-      // fs.writeSync(1, `${JSON.stringify(Array.from(scope1._context.children)[0])}\n`)
-      fs.writeSync(1, `scope: ${scope1._context.id}\n`)
-      fs.writeSync(1, `child: ${Array.from(scope1._context.children)[0][1].id}\n`)
-      fs.writeSync(1, `child parent: ${Array.from(scope1._context.children)[0][1].parent}\n`)
+      expect(outerContext.children.size).to.equal(outerChildCount + 1)
+      expect(outerContext.children.get(scope3._context.id)).to.equal(scope3._context)
       expect(scope1._context.parent).to.be.null
       expect(scope1._context.children.size).to.equal(0)
       expect(scope2._context.parent).to.be.null
       expect(scope2._context.children.size).to.equal(0)
-      expect(scope3._context.parent).to.be.null
-      expect(scope3._context.children.size).to.equal(0)
+      expect(scope3._context.parent).to.equal(outerContext)
+      expect(scope3._context.children.size).to.equal(1)
+      expect(scope3._context.children.values().next().value).to.equal(innerContext)
+      expect(innerContext.parent).to.equal(scope3._context)
 
       done()
     }
 
     setTimeout(() => {
       scope1 = scopeManager.activate({})
-      // fs.writeSync(1, `${scope1._context.parent.id}\n`)
 
       setTimeout(() => {
         scope2 = scopeManager.activate({})
-        // fs.writeSync(1, `${scope2._context.parent.id}\n`)
 
         setTimeout(() => {
           scope1.close()
 
           scope3 = scopeManager.activate({})
-          // fs.writeSync(1, `${scope3._context.parent.id}\n`)
 
           setTimeout(() => {
             scope2.close()
 
             setTimeout(() => {
-              scope3.close()
+              innerContext = scopeManager._active
 
               assert()
+
+              scope3.close()
             })
           })
         })

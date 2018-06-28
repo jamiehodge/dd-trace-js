@@ -1,7 +1,5 @@
 'use strict'
 
-const fs = require('fs')
-
 class Context {
   constructor (id, parent) {
     this.id = id
@@ -11,13 +9,6 @@ class Context {
     this.count = 0
     this.exited = false
     this.set = []
-
-    fs.writeSync(1, `context ctor: ${this.id} ${parent && this.parent.id}\n`)
-
-    if (parent) {
-      parent.children.set(id, this)
-      parent.retain()
-    }
   }
 
   retain () {
@@ -40,15 +31,21 @@ class Context {
     }
   }
 
+  link () {
+    if (this.parent) {
+      this.parent.children.set(this.id, this)
+      this.parent.retain()
+    }
+  }
+
   destroy () {
     if (this.parent) {
-      fs.writeSync(1, `context dest: ${this.id} ${this.parent.id}\n`)
-
       this.children.forEach((child) => {
         child.parent = this.parent
         this.parent.children.set(child.id, child)
         this.parent.retain()
       })
+      this.children.clear()
 
       this.parent.children.delete(this.id)
       this.parent.release()
