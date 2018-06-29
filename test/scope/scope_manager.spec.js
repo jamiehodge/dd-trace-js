@@ -87,6 +87,10 @@ describe('ScopeManager', () => {
   //   }, 1)
   // })
 
+  // it('should support reentering contexts', () => {
+
+  // })
+
   it('should prevent memory leaks in recursive timers', done => {
     const outerContext = scopeManager._active
     const outerChildCount = outerContext.children.size

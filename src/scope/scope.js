@@ -16,14 +16,7 @@ class Scope {
       this._span.finish()
     }
 
-    const index = this._context.set.lastIndexOf(this)
-
-    this._context.set.splice(index, 1)
-    this._context.active = this._context.set[this._context.set.length - 1]
-
-    if (this._context.exited && !this._context.active) {
-      this._context.destroy()
-    }
+    this._context.exit(this)
   }
 }
 
