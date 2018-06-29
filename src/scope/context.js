@@ -40,19 +40,16 @@ class Context {
   }
 
   remove () {
-    if (this.parent) {
-      if (this.set.length === 0) {
-        this.destroy()
-      } else {
-        this.close()
-      }
+    if (this.set.length === 0) {
+      this.destroy()
+    } else {
+      this.close()
     }
   }
 
   link (parent) {
     this.parent = parent
-    this.parent.children.set(this.id, this)
-    this.parent.retain() // TODO: remove this
+    this.parent.attach(this)
   }
 
   unlink () {
@@ -64,7 +61,8 @@ class Context {
   }
 
   attach (child) {
-
+    this.children.set(child.id, child)
+    this.retain()
   }
 
   detach (child) {
@@ -80,14 +78,17 @@ class Context {
   }
 
   destroy () {
-    if (this.parent && this.exited) {
-      const parent = this.parent
-
+    if (this.parent) {
       this.bypass()
-      this.unlink()
       this.count = -1
 
-      parent.remove()
+      if (this.destroyed) {
+        const parent = this.parent
+
+        this.unlink()
+
+        parent.remove()
+      }
     }
   }
 }

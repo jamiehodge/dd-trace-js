@@ -101,6 +101,16 @@ describe('ScopeManager', () => {
     let scope3
 
     function assert () {
+      const fs = require('fs')
+
+      fs.writeSync(1, `scope1: ${scope1._context.id}\n`)
+      fs.writeSync(1, `scope2: ${scope2._context.id}\n`)
+      fs.writeSync(1, `scope3: ${scope3._context.id}\n`)
+      fs.writeSync(1, `innerContext: ${innerContext.id}\n`)
+      fs.writeSync(1, `innerContext.parent: ${innerContext.parent.id}\n`)
+      fs.writeSync(1, `outlier: ${Array.from(outerContext.children.values())[2].id}\n`)
+      fs.writeSync(1, `outlier.parent: ${Array.from(outerContext.children.values())[2].parent.id}\n`)
+
       expect(outerContext.children.size).to.equal(outerChildCount + 1)
       expect(outerContext.children.get(scope3._context.id)).to.equal(scope3._context)
       expect(scope1._context.parent).to.be.null
@@ -132,7 +142,9 @@ describe('ScopeManager', () => {
             setTimeout(() => {
               innerContext = scopeManager._active
 
+              // setTimeout(() => {
               assert()
+              // }, 10)
 
               scope3.close()
             })

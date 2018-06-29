@@ -67,21 +67,21 @@ class ScopeManager {
     const context = this._context.get(asyncId)
 
     this._exit(context)
-    // this._remove(context) // remove early when possible
   }
 
   _destroy (asyncId) {
     const context = this._context.get(asyncId)
 
-    // this._context.delete(context.id)
-    this._remove(context) // remove on garbage collection
+    if (context) {
+      context.destroyed = true
+      context.remove()
+
+      this._context.delete(context.id)
+    }
   }
 
   _promiseResolve (asyncId) {
-    const context = this._context.get(asyncId)
-
-    // this._context.delete(context.id)
-    this._remove(context) // remove on promise resolve
+    this._destroy(asyncId)
   }
 
   _enter (context) {
@@ -97,16 +97,7 @@ class ScopeManager {
         this._active = this._set.pop()
       }
 
-      context.exited = true
-
-      this._remove(context)
-    }
-  }
-
-  _remove (context) {
-    if (context) {
-      context.remove()
-      this._context.delete(context.id)
+      context.close()
     }
   }
 
